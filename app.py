@@ -16,6 +16,23 @@ st.title("🚑 Filtro de pacientes Mosare")
 aten_file = st.file_uploader("📄 Sube el archivo AtenMedxServ", type=["txt"])
 resul_file = st.file_uploader("📄 Sube el archivo ResulExam_PatCli", type=["txt"])
 cartera_file = st.file_uploader("📄 Sube el archivo CarteraVisare", type=["txt"])
+cart_apertura_file = st.file_uploader("📄 Sube el archivo CartMosareApertura", type=["txt"])  # NUEVO
+
+# Validación inmediata del archivo CartMosareApertura
+cart_apertura_vacio = False
+dni_cart_apertura = pd.Series([], dtype=str)
+
+if cart_apertura_file:
+    df_apertura_raw = pd.read_csv(cart_apertura_file, sep="|", dtype=str)
+    if (
+        df_apertura_raw.shape[0] == 1 and
+        df_apertura_raw.iloc[0, 0].strip().upper() == "NO HAY REGISTROS ENCONTRADOS"
+    ):
+        st.warning("⚠️ El archivo CartMosareApertura no contiene registros. Puedes subir otro archivo o continuar con la búsqueda.")
+        cart_apertura_vacio = True
+    else:
+        dni_cart_apertura = df_apertura_raw["NUM_DOCMTO"].str.replace("1-", "", regex=False)
+
 
 # Diccionario de IPRES
 ipres_dict = {
@@ -71,7 +88,7 @@ def read_pipe_file(uploaded_file) -> pd.DataFrame:
         raise ValueError(f"El archivo no tiene el número esperado de columnas ({TOTAL_COLS}).")
     return pd.DataFrame(data, columns=header)
 
-if aten_file and resul_file and cartera_file:
+if aten_file and resul_file and cartera_file and cart_apertura_file:
     if st.button("🔍 Realizar búsqueda"):
         try:
             # Leer archivos con parsing inteligente
@@ -98,6 +115,10 @@ if aten_file and resul_file and cartera_file:
             # Excluir si están en CarteraVisare
             dni_formateado = "1-" + df_filtrado["DNI"]
             df_filtrado = df_filtrado[~dni_formateado.isin(df_cartera["NUM-DOCMTO"])]
+
+            # Excluir si están en CartMosareApertura (solo si tiene registros válidos)
+            if not cart_apertura_vacio:
+                df_filtrado = df_filtrado[~df_filtrado["DNI"].isin(dni_cart_apertura)]
 
             # Merge con datos del paciente
             df_merge = df_filtrado.merge(
